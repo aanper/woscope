@@ -43,7 +43,7 @@ function woscope(config) {
     let canvas = config.canvas,
         gl = initGl(canvas, config.background, config.error),
         audio = config.audio,
-        audioUrl = config.audioUrl || audio.currentSrc || audio.src,
+        // audioUrl = config.audioUrl || audio.currentSrc || audio.src,
         live = (config.live === true) ? getLiveType() : config.live,
         callback = config.callback || function () {};
 
@@ -102,7 +102,9 @@ function woscope(config) {
     };
 
     if (ctx.live) {
-        ctx.sourceNode = config.sourceNode || audioCtx.createMediaElementSource(audio);
+        let sourceNode = config.getSource(audioCtx);
+        
+        ctx.sourceNode = sourceNode || audioCtx.createMediaElementSource(audio);
         let source = gainWorkaround(ctx.sourceNode, audio);
         if (ctx.live === 'scriptProcessor') {
             ctx.scriptNode = initScriptNode(ctx, source);
@@ -123,6 +125,7 @@ function woscope(config) {
     };
     progressLoop();
 
+    /*
     axhr(audioUrl, function(buffer) {
         ctx.audioData = prepareAudioData(ctx, buffer);
         ctx.loaded = true;
@@ -134,6 +137,7 @@ function woscope(config) {
         ctx.progress = e.total ? e.loaded / e.total : 1.0;
         console.log('progress: ' + e.loaded + ' / ' + e.total);
     });
+    */
 
     return ctx;
 }
