@@ -24,7 +24,7 @@ pub fn get_buffer_len() -> usize {
 
 fn process_sample(t: f32) -> (f32, f32) {
     let left = 0.3 * (2.0 * f32::consts::PI * 120.1 * t).sin();
-    let right = 0.3 * (2.0 * f32::consts::PI * 240.0 * t).sin();
+    let right = 0.3 * (2.0 * f32::consts::PI * 180.0 * t).sin();
 
     return (left, right);
 }
