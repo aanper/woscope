@@ -1,265 +1,135 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 'use strict';
+/* global WebAssembly */
 
 var woscope = require('../');
 
-var libraryInfo = [{
-    file: 'khrang.ogg',
-    mpeg: 'khrang.m4a',
-    author: 'Jerobeam Fenderson',
-    title: 'Khrậng',
-    link: 'https://www.youtube.com/watch?v=vAyCl4IHIz8',
-    swap: true
-}, {
-    file: 'oscillofun.ogg',
-    mpeg: 'oscillofun.mp3',
-    author: 'ATOM DELTA',
-    title: 'Oscillofun',
-    link: 'https://www.youtube.com/watch?v=o4YyI6_y6kw',
-    invert: true
-}, {
-    file: 'alpha_molecule.ogg',
-    mpeg: 'alpha_molecule.mp3',
-    author: 'Alexander Taylor',
-    title: 'The Alpha Molecule',
-    link: 'https://www.youtube.com/watch?v=XM8kYRS-cNk',
-    invert: true
-}];
-
-var libraryDict = {};
-libraryInfo.forEach(function (e) {
-    libraryDict[e.file] = e;
-});
-
-var query = parseq(location.search);
-if (!query.file) {
-    query = libraryInfo[0];
+function buf2hex(buffer) {
+    // buffer is an ArrayBuffer
+    return Array.prototype.map.call(new Uint8Array(buffer), function (x) {
+        return ('00' + x.toString(16)).slice(-2);
+    }).join('');
 }
 
-var file = query.file;
+function handle_audio(audio_context, rust_exports) {
+
+    console.log("use wasm:", rust_exports.add_one(41));
+
+    // create constant wave for left channel
+    var left_node = audio_context.createConstantSource();
+    var right_node = audio_context.createConstantSource();
+
+    // merge two wave to stereo
+    var merger = audio_context.createChannelMerger(2);
+    left_node.connect(merger, 0, 0);
+    right_node.connect(merger, 0, 1);
+
+    var script_node = audio_context.createScriptProcessor(4096, 2, 2);
+
+    var fs = audio_context.sampleRate;
+
+    var t = 0;
+
+    script_node.onaudioprocess = function (e) {
+        // The output buffer contains the samples that will be modified and played
+        var inputBuffer = e.inputBuffer;
+        var outputBuffer = e.outputBuffer;
+
+        var inputData = [];
+        var outputData = [];
+
+        // Loop through the output channels
+        for (var channel = 0; channel < outputBuffer.numberOfChannels; channel++) {
+            inputData.push(inputBuffer.getChannelData(channel));
+            outputData.push(outputBuffer.getChannelData(channel));
+        }
+
+        // Loop through the 4096 samples
+        for (var sample = 0; sample < inputBuffer.length; sample++) {
+            // make output equal to the same as the input
+            outputData[0][sample] = 0; // inputData[0][sample] * 0.4;
+            outputData[1][sample] = 0; // inputData[1][sample] * 0.2;
+
+            var dp = t < 2 ? t * 5 : 4 * 5; // 0.5 * Math.sin(2 * Math.PI * 0.1 * t);
+
+            var da = 0;
+            var a = 1;
+
+            if (t > 2) {
+                da = (t - 2) * 0.01;
+            }
+
+            if (t > 5) {
+                da = (t - 5) * 1;
+            }
+
+            if (t > 7) {
+                a = (t - 6.9) * 10;
+            }
+
+            var p_0 = 0.05 * Math.PI * Math.sin(2 * Math.PI * (360 + dp * 5) * t) / (1 + da * 100);
+            var p_1 = 0.05 * Math.PI * Math.sin(2 * Math.PI * (350 + dp * 5.5) * t) / (1 + da * 100);
+
+            outputData[0][sample] += p_0 * 0.3 * Math.sin(2 * Math.PI * 120 * t) * dp;
+            outputData[1][sample] += p_1 * 0.3 * Math.sin(2 * Math.PI * 300.2 * t) + p_0;
+
+            outputData[0][sample] += da / (da + 1) * Math.sin(2 * Math.PI * (240 * (da / (da + 2))) * t);
+            outputData[1][sample] += da / (da + 1) * -Math.sin(2 * Math.PI * (120 * (da / (da + 2))) * t);
+            outputData[0][sample] += da / (da + 1) * 0.5 * Math.sin(2 * Math.PI * 1 * t);
+            outputData[1][sample] += da / (da + 1) * 0.5 * Math.cos(2 * Math.PI * 1 * t);
+
+            // outputData[0][sample] += 0.01 * Math.sin(2 * Math.PI * 50.1 * t + Math.PI/4);
+            // outputData[1][sample] += 0.01 * Math.sin(2 * Math.PI * 80.5 * t);
+
+            // add noise to each output sample
+            outputData[0][sample] += (Math.random() * 2 - 1) * 0.001;
+            outputData[1][sample] += (Math.random() * 2 - 1) * 0.001;
+
+            outputData[0][sample] /= a;
+            outputData[1][sample] /= a;
+
+            t += 1 / fs;
+        }
+    };
+
+    merger.connect(script_node);
+
+    left_node.start();
+    right_node.start();
+
+    return script_node;
+}
 
 window.onload = function () {
-    var htmlAudio = $('htmlAudio');
-
-    updatePageInfo();
-
-    htmlAudio.src = './woscope-music/' + (htmlAudio.canPlayType('audio/ogg') ? file : libraryDict[file].mpeg);
-    htmlAudio.load();
-
     window.onresize();
 
-    initWoscope();
-};
+    var canvas = document.getElementById('c');
 
-function initWoscope(config) {
-    var canvas = $('c'),
-        htmlAudio = $('htmlAudio'),
-        htmlError = $('htmlError');
-
-    config = Object.assign({
-        canvas: canvas,
-        audio: htmlAudio,
-        callback: function callback() {
-            htmlAudio.play();
-        },
-        error: function error(msg) {
-            htmlError.innerHTML = '';
-            htmlError.appendChild(renderDom(msg.toString()));
-        },
-        color: [1 / 32, 1, 1 / 32, 1],
-        color2: [1, 0, 1, 1],
-        background: [0, 0, 0, 1],
-        swap: query.swap,
-        invert: query.invert,
-        sweep: query.sweep,
-        bloom: query.bloom,
-        live: query.live
-    }, config);
-
-    var myWoscope = woscope(config);
-
-    setupOptionsUI(function (options) {
-        return Object.assign(myWoscope, options);
-    }, {
-        swap: 'swap channels',
-        invert: 'invert coordinates',
-        sweep: 'traditional oscilloscope display',
-        bloom: 'add glow',
-        live: 'analyze audio in real time\n\n' + '- no display while paused/scrubbing\n' + '- volume affects the display size\n' + '- does not work in Mobile Safari'
+    fetch('/dist/demo.strip.wasm').then(function (response) {
+        return response.arrayBuffer();
+    }).then(function (bytes) {
+        // console.log(buf2hex(bytes));
+        return WebAssembly.instantiate(bytes, {});
+    }).then(function (results) {
+        woscope({
+            canvas: canvas,
+            audio: null,
+            getSource: function getSource(audio_context) {
+                return handle_audio(audio_context, results.instance.exports);
+            },
+            live: true
+        });
     });
-}
+};
 
 var mySourceNode = void 0;
 
-function resetWoscope(woscopeInstance) {
-    // Chrome has limit of one sourceNode per audio element, so keep a reference
-    mySourceNode = woscopeInstance.sourceNode || mySourceNode;
-
-    woscopeInstance.destroy();
-
-    // replace canvas. more compatible than restoring gl context on old canvas
-    var canvas = $('c');
-    var copy = canvas.cloneNode(true);
-    canvas.parentNode.replaceChild(copy, canvas);
-
-    // prevent doubled audio
-    if (query.live && mySourceNode) {
-        mySourceNode.disconnect();
-    }
-
-    initWoscope({ sourceNode: mySourceNode });
-}
-
 window.onresize = function () {
-    var canvas = $('c'),
+    var canvas = document.getElementById('c'),
         length = Math.min(window.innerHeight, canvas.parentNode.offsetWidth);
     canvas.width = length;
     canvas.height = length;
 };
-
-function $(id) {
-    return document.getElementById(id);
-}
-
-function renderDom(obj) {
-    var dom = void 0,
-        idx = void 0,
-        attrs = void 0;
-    if (typeof obj === 'string') {
-        return document.createTextNode(obj);
-    } else if (Array.isArray(obj)) {
-        if (obj[0] === '!comment') {
-            return document.createComment(obj[1]);
-        }
-        dom = document.createElement(obj[0]);
-        idx = 1;
-        attrs = obj[1];
-        if (attrs && Object.getPrototypeOf(attrs) === Object.prototype) {
-            idx += 1;
-            Object.keys(attrs).forEach(function (key) {
-                if (key === 'style') {
-                    Object.assign(dom.style, attrs[key]);
-                } else if (/^on/.test(key)) {
-                    dom[key] = attrs[key];
-                } else {
-                    dom.setAttribute(key, attrs[key]);
-                }
-            });
-        }
-        obj.slice(idx).forEach(function (child) {
-            dom.appendChild(renderDom(child));
-        });
-        return dom;
-    } else {
-        throw 'Cannot make dom of: ' + obj;
-    }
-}
-
-function parseq(search) {
-    search = search.replace(/^\?/, '');
-    var obj = {};
-    search.split('&').forEach(function (pair) {
-        pair = pair.split('=');
-        obj[decodeURIComponent(pair[0])] = pair.length > 1 ? decodeURIComponent(pair[1]) : true;
-    });
-    return obj;
-}
-
-function dumpq(obj) {
-    return Object.keys(obj).map(function (key) {
-        if (obj[key] === true) {
-            return encodeURIComponent(key);
-        } else {
-            return encodeURIComponent(key) + '=' + encodeURIComponent(obj[key]);
-        }
-    }).join('&');
-}
-
-function updatePageInfo() {
-    var songInfo = $('songInfo');
-    songInfo.innerHTML = '';
-    if (file in libraryDict) {
-        var info = libraryDict[file];
-        songInfo.appendChild(renderDom(['span', info.author + ' — ' + info.title + ' ', ['a', { href: info.link }, '[link]']]));
-    }
-
-    var ul = $('playList');
-    ul.innerHTML = '';
-    libraryInfo.forEach(function (song) {
-        ul.appendChild(renderDom(['li', ['a', { href: '?' + dumpq(makeQuery(song)) }, song.title]]));
-    });
-}
-
-function makeQuery(song) {
-    var q = { file: song.file };
-    if (song.swap) {
-        q.swap = true;
-    }
-    if (song.invert) {
-        q.invert = true;
-    }
-    if (query.live) {
-        q.live = true;
-    }
-    return q;
-}
-
-function setupOptionsUI(updater, options) {
-    var addChecked = function addChecked(obj, checked) {
-        if (checked) {
-            obj.checked = true;
-        }
-        return obj;
-    };
-
-    var ul = $('options');
-    ul.innerHTML = '';
-    Object.keys(options).forEach(function (param) {
-        ul.appendChild(renderDom(['li', ['label', { title: options[param] }, ['input', addChecked({
-            type: 'checkbox',
-            id: param,
-            onchange: param === 'live' ? getLiveToggle() : toggle
-        }, query[param])], ' ' + param]]));
-    });
-
-    function getLiveToggle() {
-        // prefer to reset woscope when toggling live mode, but Safari viz loses
-        // sync when live = false and a MediaElementSourceNode is attached to
-        // the audio element, so reload page instead.
-        // this depends on Safari using webkitAudioContext and may be fragile
-        return window.AudioContext ? toggleAndReset : toggleAndReload;
-    }
-    function toggle(e) {
-        updateUrl(e);
-        var result = {};
-        result[e.target.id] = e.target.checked;
-        updater(result);
-    }
-    function toggleAndReset(e) {
-        updateUrl(e);
-        updatePageInfo();
-        resetWoscope(updater());
-    }
-    function toggleAndReload(e) {
-        location.href = makeUrl(e);
-    }
-    function updateUrl(e) {
-        history.replaceState(null, '', makeUrl(e));
-        query = parseq(location.search);
-    }
-    function makeUrl(e) {
-        var q = parseq(location.search);
-        if (!q.file) {
-            q = makeQuery(libraryInfo[0]);
-        }
-        if (e.target.checked) {
-            q[e.target.id] = true;
-        } else {
-            delete q[e.target.id];
-        }
-        return '?' + dumpq(q);
-    }
-}
 
 },{"../":2}],2:[function(require,module,exports){
 'use strict';
@@ -305,8 +175,9 @@ function woscope(config) {
     var canvas = config.canvas,
         gl = initGl(canvas, config.background, config.error),
         audio = config.audio,
-        audioUrl = config.audioUrl || audio.currentSrc || audio.src,
-        live = config.live === true ? getLiveType() : config.live,
+
+    // audioUrl = config.audioUrl || audio.currentSrc || audio.src,
+    live = config.live === true ? getLiveType() : config.live,
         callback = config.callback || function () {};
 
     var ctx = {
@@ -366,7 +237,9 @@ function woscope(config) {
     };
 
     if (ctx.live) {
-        ctx.sourceNode = config.sourceNode || audioCtx.createMediaElementSource(audio);
+        var sourceNode = config.getSource(audioCtx);
+
+        ctx.sourceNode = sourceNode || audioCtx.createMediaElementSource(audio);
         var source = gainWorkaround(ctx.sourceNode, audio);
         if (ctx.live === 'scriptProcessor') {
             ctx.scriptNode = initScriptNode(ctx, source);
@@ -387,15 +260,19 @@ function woscope(config) {
     };
     _progressLoop();
 
-    axhr(audioUrl, function (buffer) {
+    /*
+    axhr(audioUrl, function(buffer) {
         ctx.audioData = prepareAudioData(ctx, buffer);
         ctx.loaded = true;
         callback(ctx);
-        _loop();
-    }, config.error, function (e) {
+        loop();
+    },
+    config.error,
+    function (e) {
         ctx.progress = e.total ? e.loaded / e.total : 1.0;
         console.log('progress: ' + e.loaded + ' / ' + e.total);
     });
+    */
 
     return ctx;
 }

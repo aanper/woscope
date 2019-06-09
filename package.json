@@ -21,7 +21,7 @@
     "url": "https://github.com/m1el/woscope/issues"
   },
   "scripts": {
-    "demo": "budo demo/:dist/demo.js --live --open",
+    "demo": "http-server",
     "build": "jshint *.js demo/*.js && browserify demo/ > dist/demo.js && browserify index.js --standalone woscope -p [browserify-banner --file banner.txt] > dist/woscope.js"
   },
   "browserify": {
