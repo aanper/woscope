@@ -24,7 +24,11 @@ function handle_audio(audio_context, rust_exports) {
     left_node.connect(merger, 0, 0);
     right_node.connect(merger, 0, 1);
 
-    var script_node = audio_context.createScriptProcessor(4096, 2, 2);
+    var buffer_len = rust_exports.get_buffer_len();
+    var linear_memory = rust_exports.memory;
+    var offset = rust_exports.get_buffer();
+
+    var script_node = audio_context.createScriptProcessor(buffer_len / 2, 2, 2);
 
     var fs = audio_context.sampleRate;
 
@@ -44,51 +48,14 @@ function handle_audio(audio_context, rust_exports) {
             outputData.push(outputBuffer.getChannelData(channel));
         }
 
+        t = rust_exports.request_frame(t, fs);
+        var buffer = new Float32Array(linear_memory.buffer, offset, buffer_len);
+
         // Loop through the 4096 samples
         for (var sample = 0; sample < inputBuffer.length; sample++) {
             // make output equal to the same as the input
-            outputData[0][sample] = 0; // inputData[0][sample] * 0.4;
-            outputData[1][sample] = 0; // inputData[1][sample] * 0.2;
-
-            var dp = t < 2 ? t * 5 : 4 * 5; // 0.5 * Math.sin(2 * Math.PI * 0.1 * t);
-
-            var da = 0;
-            var a = 1;
-
-            if (t > 2) {
-                da = (t - 2) * 0.01;
-            }
-
-            if (t > 5) {
-                da = (t - 5) * 1;
-            }
-
-            if (t > 7) {
-                a = (t - 6.9) * 10;
-            }
-
-            var p_0 = 0.05 * Math.PI * Math.sin(2 * Math.PI * (360 + dp * 5) * t) / (1 + da * 100);
-            var p_1 = 0.05 * Math.PI * Math.sin(2 * Math.PI * (350 + dp * 5.5) * t) / (1 + da * 100);
-
-            outputData[0][sample] += p_0 * 0.3 * Math.sin(2 * Math.PI * 120 * t) * dp;
-            outputData[1][sample] += p_1 * 0.3 * Math.sin(2 * Math.PI * 300.2 * t) + p_0;
-
-            outputData[0][sample] += da / (da + 1) * Math.sin(2 * Math.PI * (240 * (da / (da + 2))) * t);
-            outputData[1][sample] += da / (da + 1) * -Math.sin(2 * Math.PI * (120 * (da / (da + 2))) * t);
-            outputData[0][sample] += da / (da + 1) * 0.5 * Math.sin(2 * Math.PI * 1 * t);
-            outputData[1][sample] += da / (da + 1) * 0.5 * Math.cos(2 * Math.PI * 1 * t);
-
-            // outputData[0][sample] += 0.01 * Math.sin(2 * Math.PI * 50.1 * t + Math.PI/4);
-            // outputData[1][sample] += 0.01 * Math.sin(2 * Math.PI * 80.5 * t);
-
-            // add noise to each output sample
-            outputData[0][sample] += (Math.random() * 2 - 1) * 0.001;
-            outputData[1][sample] += (Math.random() * 2 - 1) * 0.001;
-
-            outputData[0][sample] /= a;
-            outputData[1][sample] /= a;
-
-            t += 1 / fs;
+            outputData[0][sample] = buffer[sample];
+            outputData[1][sample] = buffer[sample + buffer_len / 2];
         }
     };
 
