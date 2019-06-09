@@ -7,21 +7,40 @@ Full explanation available on [the blag](http://m1el.github.io/woscope-how/)
 Code is available under MIT license.
 
 ### Example
-```html
-<audio id="myAudio" controls src="woscope-music/khrang.m4a"></audio><br>
-<canvas id="myCanvas" width="800" height="800"></canvas>
-<script src="dist/woscope.js"></script>
-<script>
-    var myCanvas = document.getElementById('myCanvas'),
-        myAudio = document.getElementById('myAudio');
+Take example code from demo/index.js. Define `getSource` function
+```js
+	getSource: function (audio_context) {
 
-    woscope({
-        canvas: myCanvas,
-        audio: myAudio,
-        callback: function () { myAudio.play(); },
-        error: function (msg) { console.log('woscope error:', msg); }
-    });
-</script>
+        // create sine wave for left channel
+        let sineA = audio_context.createOscillator();
+        sineA.type = 'sine';
+        sineA.frequency.value = 120;
+
+        // scale sine wave
+        var gainA = audio_context.createGain();
+        gainA.gain.value = 0.4;
+        sineA.connect(gainA);
+
+        // create sine fot right channel
+        var sineB = audio_context.createOscillator();
+        sineB.type = 'sine';
+        sineB.frequency.value = 300.1; // pitch freq to make spinning effect
+
+        // and scale it
+        var gainB = audio_context.createGain();
+        gainB.gain.value = 0.4;
+        sineB.connect(gainB);
+
+        // merge two wave to stereo
+        let merger = audio_context.createChannelMerger(2);
+        gainA.connect(merger, 0, 0);
+        gainB.connect(merger, 0, 1);
+
+        sineA.start();
+        sineB.start();
+
+        return merger;
+    },
 ```
 
 ### Dev commands
