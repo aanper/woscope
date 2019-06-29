@@ -42,7 +42,8 @@ fn rotate(point: (f32, f32), angle: f32) -> (f32, f32) {
 }
 
 struct Rect {
-    fs: f32,
+    prev_t: f32,
+    p: f32,
     freq: f32,
     width: f32,
     height: f32,
@@ -53,27 +54,43 @@ struct Rect {
 }
 
 impl Rect {
-    pub fn new(width: f32, height: f32, fs: f32, freq: f32) -> Self {
+    pub const fn new(width: f32, height: f32, freq: f32) -> Self {
         return Rect {
-            fs,
             freq,
             width,
             height,
 
             rotate: 0.0,
             shift: (0.0, 0.0),
-            scale: (1.0, 1.0)
+            scale: (1.0, 1.0),
+
+            prev_t: 0.0,
+            p: 0.0
         };
     }
 }
 
 impl Primitive for Rect {
     fn draw(&mut self, switch: bool, t: f32) -> (f32, f32, bool) {
-        let p = (t * self.freq) % 4.0;
+        
+        if switch {
+            self.p = 0.0;
+            self.prev_t = t;
+        }
+        
+
+        self.p += (t - self.prev_t) * self.freq;
+
+        self.prev_t = t;
+
+        let p = self.p % 4.0;
 
         let x = -self.width / 2.0;
         let y = -self.height / 2.0;
 
+        let (point_x, point_y) = (p, 0.0);
+
+        
         let (point_x, point_y) = match p {
             d if d >= 0.0 && d < 1.0 => (x + p * self.width, y),
             d if d >= 1.0 && d < 2.0 => (x + self.width, y + (p - 1.0) * self.height),
@@ -87,28 +104,30 @@ impl Primitive for Rect {
         let (point_x, point_y) = shift((point_x, point_y), self.shift);
 
 
-        return (point_x, point_y, (p < (1.0 * self.freq)/self.fs && !switch));
+        return (point_x, point_y, self.p >= 4.0);
     }
 }
 
 struct Ctx {
     current_primitive: usize,
     switch_primitive: bool,
+    rect_0: Rect,
+    rect_1: Rect
 }
 
-fn process_sample(ctx: &mut Ctx, t: f32, fs: f32) -> (f32, f32) {
+fn process_sample(ctx: &mut Ctx, t: f32) -> (f32, f32) {
     // let x = 0.3 * (2.0 * f32::consts::PI * 120.1 * t).sin();
     // let y = 0.3 * (2.0 * f32::consts::PI * 180.0 * t).sin();
 
-    let mut rect_0: Rect = Rect::new(0.5, 0.5, fs, 500.0);
-    rect_0.shift = (0.2 * t.cos(), 0.2 * t.sin());
-    rect_0.scale = (0.5 * (t * 0.5).cos(), 0.5 * (t * 0.8).sin());
+    // rect_0.shift = (0.2, 0.0);
+    // rect_0.scale = (1.0, 0.5 * (t * 0.8).sin());
+    // rect_0.freq = 1000.0 + 50.0 * (t * 40.0).cos();
 
-    let mut rect_1: Rect = Rect::new(1.0, 1.0, fs, 800.0);
-    rect_1.rotate = 1.0 * t;
-    rect_1.scale = (1.0 * (t * 2.0).cos(), 1.0 * (t * 2.5).sin());
+    // rect_1.rotate = 1.0 * t;
+    // rect_1.scale = (1.0 * (t * 2.0).cos(), 1.0);
+    // rect_1.freq = 1000.0 + 100.0 * (t * 50.0).cos();
 
-    let primitives: [&mut Primitive; 2] = [&mut rect_0, &mut rect_1];
+    let primitives: [&mut Primitive; 2] = [&mut ctx.rect_0, &mut ctx.rect_1];
     let (x, y, is_complete) = primitives[ctx.current_primitive].draw(ctx.switch_primitive, t);
 
     ctx.switch_primitive = is_complete;
@@ -127,6 +146,8 @@ fn process_sample(ctx: &mut Ctx, t: f32, fs: f32) -> (f32, f32) {
 static mut CTX: Ctx = Ctx { 
     current_primitive: 0,
     switch_primitive: true,
+    rect_0: Rect::new(0.5, 0.5, 1000.0),
+    rect_1: Rect::new(1.0, 1.0, 500.0)
 };
 
 #[no_mangle]
@@ -136,7 +157,7 @@ pub fn request_frame(init_t: f32, fs: f32) -> f32 {
     let buffer_len = get_buffer_len();
     for i in 0..buffer_len/2 {
         unsafe {
-            let (x, y) = process_sample(&mut CTX, t, fs);
+            let (x, y) = process_sample(&mut CTX, t);
 
             BUFFER[i] = x;
             BUFFER[i + buffer_len/2] = y;
