@@ -74,7 +74,7 @@ impl Primitive for Rect {
     fn draw(&mut self, switch: bool, t: f32) -> (f32, f32, bool) {
         
         if switch {
-            self.p = 0.0;
+            self.p += 0.01;
             self.prev_t = t;
         }
         
@@ -104,7 +104,7 @@ impl Primitive for Rect {
         let (point_x, point_y) = shift((point_x, point_y), self.shift);
 
 
-        return (point_x, point_y, self.p >= 4.0);
+        return (point_x, point_y, p % 1.0 >= 0.99);
     }
 }
 
@@ -116,16 +116,15 @@ struct Ctx {
 }
 
 fn process_sample(ctx: &mut Ctx, t: f32) -> (f32, f32) {
-    // let x = 0.3 * (2.0 * f32::consts::PI * 120.1 * t).sin();
-    // let y = 0.3 * (2.0 * f32::consts::PI * 180.0 * t).sin();
 
-    // rect_0.shift = (0.2, 0.0);
-    // rect_0.scale = (1.0, 0.5 * (t * 0.8).sin());
-    // rect_0.freq = 1000.0 + 50.0 * (t * 40.0).cos();
+    ctx.rect_0.shift = (0.2, 0.0);
+    ctx.rect_0.scale = (1.0, 0.5 * (t * 2.1).sin());
+    // ctx.rect_0.freq = 1000.0 + 50.0 * (t * 10.0).cos();
 
-    // rect_1.rotate = 1.0 * t;
-    // rect_1.scale = (1.0 * (t * 2.0).cos(), 1.0);
-    // rect_1.freq = 1000.0 + 100.0 * (t * 50.0).cos();
+    ctx.rect_1.rotate = 1.0 * t;
+    ctx.rect_0.rotate = 0.5 * t;
+    ctx.rect_1.scale = (1.0 * (t * 5.0).cos(), 1.0);
+    // ctx.rect_1.freq = 1000.0 + 100.0 * (t * 50.0).cos();
 
     let primitives: [&mut Primitive; 2] = [&mut ctx.rect_0, &mut ctx.rect_1];
     let (x, y, is_complete) = primitives[ctx.current_primitive].draw(ctx.switch_primitive, t);
