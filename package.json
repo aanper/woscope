@@ -22,7 +22,7 @@
   },
   "scripts": {
     "demo": "http-server",
-    "build": "jshint *.js demo/*.js && browserify demo/ > dist/demo.js && browserify index.js --standalone woscope -p [browserify-banner --file banner.txt] > dist/woscope.js"
+    "build": "browserify index.js --standalone woscope -p [browserify-banner --file banner.txt] > dist/woscope.js"
   },
   "browserify": {
     "transform": [

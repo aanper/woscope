@@ -1,6 +1,6 @@
 /**
  * @name    woscope
- * @version 0.2.2 | June 9th 2019
+ * @version 0.2.2 | August 14th 2019
  * @author  m1el
  * @license MIT
  */
